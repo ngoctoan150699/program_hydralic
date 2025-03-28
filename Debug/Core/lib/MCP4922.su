@@ -1,0 +1,5 @@
+../Core/lib/MCP4922.c:12:6:DAC_begin	24	static
+../Core/lib/MCP4922.c:52:9:highByte	16	static
+../Core/lib/MCP4922.c:55:9:LowByte	16	static
+../Core/lib/MCP4922.c:59:6:sendIntValueSPI	32	static,ignoring_inline_asm
+../Core/lib/MCP4922.c:78:6:SetDAC	16	static

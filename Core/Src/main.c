@@ -31,7 +31,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-static CAN_COM canOpen ;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -310,6 +310,86 @@ void performAction(int count, bool Mode) {
 		break;
 	}
 }
+float map_adc_to_float(uint16_t adc) {
+    if (adc < MIN_ADC) adc = MIN_ADC;
+    if (adc > MAX_ADC) adc = MAX_ADC;
+    return ((adc - MIN_ADC) / (float)(MAX_ADC - MIN_ADC)) * MAX_FLOAT;
+}
+// Định nghĩa các hàm con giúp quản lý chế độ và xử lý motor
+
+// Hàm xử lý chế độ Manual
+void HandleManualMode() {
+    forward_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_6) == GPIO_PIN_SET);
+    reverse_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_8) == GPIO_PIN_SET);
+
+    if (forward_pressed && reverse_pressed) {
+        dir = 0;
+        target_speed = 0;
+    } else if (forward_pressed) {
+        dir = 1;
+        target_speed = map_adc_to_float(adc_speed);
+    } else if (reverse_pressed) {
+        dir = 3;
+        target_speed = map_adc_to_float(adc_speed);
+    } else {
+        dir = 0;
+        target_speed = 0;
+    }
+}
+
+// Hàm xử lý chế độ Auto
+void HandleAutoMode() {
+    static uint64_t auto_timer = 0;  // Bộ đếm thời gian
+    static int auto_state = 0;        // Trạng thái: 0 = thuận, 1 = ngược, 2 = dừng
+
+    // Kiểm tra thời gian đã hết hạn chưa
+    if (u_timer_expired(&auto_timer, (auto_state == 2) ? STOP_TIME : AUTO_TIME, HAL_GetTick())) {
+        // Xử lý hành động theo trạng thái hiện tại
+        if (auto_state == 0) {
+            dir = 1;  // Chạy thuận
+        } else if (auto_state == 1) {
+            dir = 3;  // Chạy ngược
+        } else {
+            dir = 0;  // Dừng
+        }
+
+        // Chuyển sang trạng thái tiếp theo (0 -> 1 -> 2 -> 0)
+        auto_state = (auto_state + 1) % 3;
+    }
+}
+
+// Hàm điều khiển động cơ
+void ControlMotor(bool reset_motor, float adc_speed) {
+    static int last_dir = -1;
+    static float last_target_speed = -1;
+    bool m_error = false;
+
+    if (reset_motor == 0) {
+        // Kiểm tra chế độ và xử lý
+        if (mode == 0) {  // Chế độ Manual
+            HandleManualMode();
+        } else {  // Chế độ Auto
+            HandleAutoMode();
+        }
+
+        // Cập nhật tốc độ mục tiêu và điều khiển động cơ nếu cần thiết
+        target_speed = map_adc_to_float(adc_speed);
+
+        if (dir != last_dir || target_speed != last_target_speed) {
+            motorControl(true, m_error, dir, target_speed);
+            last_dir = dir;
+            last_target_speed = target_speed;
+        }
+    } else {
+        // Tắt động cơ nếu cần
+        if (last_dir != 0 || last_target_speed != 0) {
+            NMTmanagement(0x1, MotorID[0]);
+            motorControl(true, m_error, 0, 0);
+            last_dir = 0;
+            last_target_speed = 0;
+        }
+    }
+}
 
 //void canOpenCallBack() {
 //	a++;
@@ -323,11 +403,7 @@ void performAction(int count, bool Mode) {
 //	}
 //}
 
-float map_adc_to_float(uint16_t adc) {
-    if (adc < MIN_ADC) adc = MIN_ADC;
-    if (adc > MAX_ADC) adc = MAX_ADC;
-    return ((adc - MIN_ADC) / (float)(MAX_ADC - MIN_ADC)) * MAX_FLOAT;
-}
+
 /* USER CODE END 0 */
 
 /**
@@ -835,10 +911,35 @@ void StartTask_Pump(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartTask_Motor */
+//
+//void StartTask_Motor(void *argument) {
+//    /* USER CODE BEGIN StartTask_Motor */
+//    osDelay(5000);
+//
+//    // Khởi tạo động cơ
+//    SetOperationMode(3, MotorID[0]);
+//    SDOProfileAcc(speedToRps(0.25), MotorID[0]);
+//    SDOProfileDec(speedToRps(0.3), MotorID[0]);
+//    SetControlWord(ControlWord_EN, MotorID[0]); // enable motor
+//    NMTmanagement(0x1, MotorID[0]);
+//
+//    /* Infinite loop */
+//    for (;;) {
+//        reset_motor = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3) == GPIO_PIN_RESET;
+//        adc_speed = mcp3202.readChannel(0);
+//
+//        // Điều khiển động cơ
+//        ControlMotor(reset_motor, adc_speed);
+//
+//        osDelay(50);
+//    }
+//    /* USER CODE END StartTask_Motor */
+//}
+
 void StartTask_Motor(void *argument) {
     /* USER CODE BEGIN StartTask_Motor */
     osDelay(5000);
- //   NMTmanagement(0x2, MotorID[0]);
+   // NMTmanagement(0x2, MotorID[0]);
     SetOperationMode(3, MotorID[0]);
     SDOProfileAcc(speedToRps(0.25), MotorID[0]);
     SDOProfileDec(speedToRps(0.3), MotorID[0]);
@@ -846,23 +947,21 @@ void StartTask_Motor(void *argument) {
     NMTmanagement(0x1, MotorID[0]);
 
     static uint32_t last_change_time = 0;
-    static bool stopping_phase = false;
-    static int last_dir = -1;
-    static float last_target_speed = -1;
+    static bool stopping_phase = false; // Đánh dấu giai đoạn dừng
 
     /* Infinite loop */
     for (;;) {
         reset_motor = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3) == GPIO_PIN_RESET;
+
         adc_speed = mcp3202.readChannel(0);
         bool m_error = false;
-
         if (reset_motor == 0) {
             if (mode == 0) { // Chế độ Manual
                 forward_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_6) == GPIO_PIN_SET);
                 reverse_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_8) == GPIO_PIN_SET);
 
                 if (forward_pressed && reverse_pressed) {
-                    dir = 0;
+                    dir = 0; // Tránh xung đột khi nhấn cả hai nút
                     target_speed = 0;
                 } else if (forward_pressed) {
                     dir = 1;
@@ -875,39 +974,41 @@ void StartTask_Motor(void *argument) {
                     target_speed = 0;
                 }
 
-            } else { // Chế độ Auto
-                uint32_t current_time = HAL_GetTick();
-
-                if (stopping_phase) {
-                    if (current_time - last_change_time >= STOP_TIME) {
-                        stopping_phase = false;
-                        last_change_time = current_time;
-                        dir = (dir == 1) ? 3 : 1;
-                    } else {
-                        dir = 0;
-                    }
-                } else {
-                    if (current_time - last_change_time >= AUTO_TIME) {
-                        stopping_phase = true;
-                        last_change_time = current_time;
-                        dir = 0;
-                    }
-                }
+            } else {
+            	HandleAutoMode();
             }
+//            { // Chế độ Auto
+//                uint32_t current_time = HAL_GetTick();
+//
+//                if (stopping_phase) {
+//                    if (current_time - last_change_time >= STOP_TIME) {
+//                        stopping_phase = false;
+//                        last_change_time = current_time;
+//
+//                        // Tiếp tục đổi hướng
+//                        if (dir == 1) {
+//                            dir = 3;
+//                        } else if (dir == 3) {
+//                            dir = 1;
+//                        } else {
+//                            dir = 1; // Đảm bảo không bị kẹt ở 0
+//                        }
+//                    } else {
+//                        dir = 0; // Trong thời gian STOP_TIME thì động cơ vẫn dừng
+//                    }
+//                } else {
+//                    if (current_time - last_change_time >= AUTO_TIME) {
+//                        stopping_phase = true; // Bắt đầu giai đoạn dừng
+//                        last_change_time = current_time;
+//                        dir = 0; // Dừng trước khi đổi hướng
+//                    }
+//                }
+//            }
             target_speed = map_adc_to_float(adc_speed);
-
-            if (dir != last_dir || target_speed != last_target_speed) {
-                motorControl(true, m_error, dir, target_speed);
-                last_dir = dir;
-                last_target_speed = target_speed;
-            }
+            motorControl(true, m_error, dir, target_speed);
         } else {
-            if (last_dir != 0 || last_target_speed != 0) {
-                NMTmanagement(0x1, MotorID[0]);
-                motorControl(true, m_error, 0, 0);
-                last_dir = 0;
-                last_target_speed = 0;
-            }
+        	NMTmanagement(0x1, MotorID[0]);
+            motorControl(true, m_error, 0, 0);
         }
         osDelay(50);
     }

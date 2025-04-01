@@ -10,11 +10,6 @@
 #include "main.h"
 #include "CanBus.h"
 #include "stdbool.h"
-/******CẤU HÌNH THÔNG SỐ BÁNH XE*********************/
-#define CONF_PI 3.14159265358979323846
-#define CONF_RATIO 16
-#define CONF_DIAMETER 0.125
-
 #define FilterHigh                ((uint32_t) 0x11U )
 #define FilterLow                ((uint32_t) 0x11U )
 
@@ -55,7 +50,6 @@ struct WheelConfig {
 	double PI ;
 	double wheelDiameter ;   //unit: m
 	int ratio ;
-	int pulsePerRev;
 };
 
 typedef enum {
@@ -92,15 +86,14 @@ struct KincoErrorStatus{
 	bool EEPROM_data;
 };
 typedef struct {
+	bool motorconnect;
+	int16_t I_q ;		    // high byte Res2/ Unit: mA
+	uint16_t Error_code;
 	struct KincoErrorStatus Error_status;
 	int32_t TargetSpeed;
 	int32_t MaxSpeed;
 	int32_t PosActual;		// high byte Res1
 	int32_t SpeedReal;		// Low byte Res1 / Unit: rpm/s
-	int16_t I_q ;		    // high byte Res2/ Unit: mA
-	uint16_t Error_code;
-	bool flagMotorStarted ; // cờ báo motor khởi động
-	bool flagMotorConnecting ; // cờ báo motor đang còn kết nối
 }KinCoParameter;
 
 
@@ -108,9 +101,7 @@ extern KinCoParameter Kincoparameter;
 extern KinCoParameter Kincoparam[MNum];
 /************************FUNTION CODE *******************************/
 Message_Kinco_Can CreateMessage( uint32_t Res, uint32_t value );
-//void MotorInit(FDCAN_HandleTypeDef *hfdcan);
-void MotorInit(CAN_COM *ucan);
-void CanRecieverCallback();
+void MotorInit();
 bool SetOperationMode(uint32_t vl, uint32_t id);
 bool SetControlWord (uint32_t vl, uint32_t id) ;
 bool SDOSetSpeed(int vl, uint32_t id);
@@ -120,10 +111,9 @@ bool SDOResetErrors(int vl, uint32_t id);
 void SetSpeed(int vl, uint32_t TPDO);
 bool NMTmanagement (NMT_Command cmd, uint32_t MotorID);
 void motorControl( bool en, bool error, uint8_t dir, double speed );
+void MotorIsConnected(uint32_t id);
 void motorErrorReset();
 double rpmToSpeed (double rpm);
 int speedToRpm (double speed);
 int speedToRps (double speed);
-int distanceToPulses(float distance);
-double calculateAcceleration( double v ,double v0, double s);
 #endif /* MACHINE_MOTORCONTROL_H_ */

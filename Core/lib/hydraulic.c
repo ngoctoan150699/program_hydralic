@@ -14,6 +14,7 @@
 
 static const uint64_t TIMER_LIMIT_HYDRAULIC = 5000 ; // 5000 ms
 static uint64_t timer_hydarulic = 0 ;
+static uint64_t timer_hydarulic1 = 0 ;
 static bool error_hydraulic_state = false ;
 
 
@@ -62,17 +63,20 @@ bool u_timer_expired1(uint64_t *t, uint64_t prd, uint64_t now) {
  */
 
 void hydraulicSetState(struct HydraulicTableControl state) {
-    HAL_GPIO_WritePin(GPIOG, GPIO_PIN_4, (GPIO_PinState) state.valve1);
-    HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, (GPIO_PinState) state.valve2);
-    HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, (GPIO_PinState) state.valve3);
-    HAL_GPIO_WritePin(GPIOG, GPIO_PIN_11, (GPIO_PinState) state.pump);
-    if(state.pump == 1)
-    {
-    	mcp4922.setDAC(1024,1024);
-    }else
-    {
-    	mcp4922.setDAC(0,0);
-    }
+	HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, (GPIO_PinState) state.valve2);
+	HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, (GPIO_PinState) state.valve3);
+
+	if (state.pump == 1) {
+		HAL_GPIO_WritePin(GPIOG, GPIO_PIN_4, (GPIO_PinState) state.valve1);
+		HAL_GPIO_WritePin(GPIOG, GPIO_PIN_11, (GPIO_PinState) state.pump);
+		mcp4922.setDAC(1024, 1024);
+	} else {
+		osDelay(100);
+		HAL_GPIO_WritePin(GPIOG, GPIO_PIN_4, (GPIO_PinState) state.valve1);
+		HAL_GPIO_WritePin(GPIOG, GPIO_PIN_11, (GPIO_PinState) state.pump);
+		mcp4922.setDAC(0, 0);
+
+	}
 }
 
 bool controlCylinder(CylinderState cmd, bool en )

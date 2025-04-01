@@ -6,18 +6,21 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../Core/lib/Canbus.c \
+../Core/lib/MCP3202.c \
 ../Core/lib/MCP4922.c \
 ../Core/lib/MotorControl.c \
 ../Core/lib/hydraulic.c 
 
 OBJS += \
 ./Core/lib/Canbus.o \
+./Core/lib/MCP3202.o \
 ./Core/lib/MCP4922.o \
 ./Core/lib/MotorControl.o \
 ./Core/lib/hydraulic.o 
 
 C_DEPS += \
 ./Core/lib/Canbus.d \
+./Core/lib/MCP3202.d \
 ./Core/lib/MCP4922.d \
 ./Core/lib/MotorControl.d \
 ./Core/lib/hydraulic.d 
@@ -30,7 +33,7 @@ Core/lib/%.o Core/lib/%.su Core/lib/%.cyclo: ../Core/lib/%.c Core/lib/subdir.mk
 clean: clean-Core-2f-lib
 
 clean-Core-2f-lib:
-	-$(RM) ./Core/lib/Canbus.cyclo ./Core/lib/Canbus.d ./Core/lib/Canbus.o ./Core/lib/Canbus.su ./Core/lib/MCP4922.cyclo ./Core/lib/MCP4922.d ./Core/lib/MCP4922.o ./Core/lib/MCP4922.su ./Core/lib/MotorControl.cyclo ./Core/lib/MotorControl.d ./Core/lib/MotorControl.o ./Core/lib/MotorControl.su ./Core/lib/hydraulic.cyclo ./Core/lib/hydraulic.d ./Core/lib/hydraulic.o ./Core/lib/hydraulic.su
+	-$(RM) ./Core/lib/Canbus.cyclo ./Core/lib/Canbus.d ./Core/lib/Canbus.o ./Core/lib/Canbus.su ./Core/lib/MCP3202.cyclo ./Core/lib/MCP3202.d ./Core/lib/MCP3202.o ./Core/lib/MCP3202.su ./Core/lib/MCP4922.cyclo ./Core/lib/MCP4922.d ./Core/lib/MCP4922.o ./Core/lib/MCP4922.su ./Core/lib/MotorControl.cyclo ./Core/lib/MotorControl.d ./Core/lib/MotorControl.o ./Core/lib/MotorControl.su ./Core/lib/hydraulic.cyclo ./Core/lib/hydraulic.d ./Core/lib/hydraulic.o ./Core/lib/hydraulic.su
 
 .PHONY: clean-Core-2f-lib
 

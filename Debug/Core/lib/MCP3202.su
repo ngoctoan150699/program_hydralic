@@ -1,0 +1,2 @@
+../Core/lib/MCP3202.c:9:6:_begin	24	static
+../Core/lib/MCP3202.c:16:10:_readChannel	40	static

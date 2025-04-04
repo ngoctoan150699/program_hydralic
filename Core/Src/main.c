@@ -42,7 +42,7 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define MIN_ADC 0
-#define MAX_ADC 2000
+#define MAX_ADC 1000
 #define MAX_FLOAT 1.0f
 #define AUTO_TIME 20000 // 20 giây (đơn vị: ms)
 #define STOP_TIME 5000

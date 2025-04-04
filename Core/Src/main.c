@@ -48,7 +48,7 @@
 #define STOP_TIME 5000
 #define TIME_FREE 20000
 #define TIME_LIFT_PALLET 4000
-#define TIME_LOWER_WHEEL 6000
+#define TIME_LOWER_WHEEL 5000
 #define TIME_DOWN_PALLET 2000
 #define TIME_LIFT_WHEEL 2000
 volatile uint8_t buttonPressCount = 0;
@@ -71,6 +71,7 @@ static double target_speed = 0;
 static bool forward_pressed=0;
 static bool reverse_pressed=0;
 static int dir = 0;
+bool m_error = false;
 #define OperationMode    0x3U
 #define ControlWord_EN   0x0FU
 #define ControlWord_DIS  0x06U
@@ -152,27 +153,7 @@ bool u_timer_expired(uint64_t *t, uint64_t prd, uint64_t now) {
   *t = (now - *t) > prd ? now + prd : *t + prd;  // Next expiration time
   return true;                                   // Expired, return true
 }
-//
-//void manualMode(void) {
-//    modeLift = HAL_GPIO_ReadPin(GPIOG, GPIO_PIN_0) == GPIO_PIN_SET ? true : false; // TRUE: bánh xe, FALSE: pallet
-//
-//    uint16_t checkPin = modeLift ? GPIO_PIN_11 : GPIO_PIN_12; // Chọn pin theo chế độ
-//    int reading = HAL_GPIO_ReadPin(GPIOF, checkPin);
-//
-//    if (reading != lastButtonState) {
-//        lastDebounceTime = HAL_GetTick();
-//    }
-//
-//    if ((HAL_GetTick() - lastDebounceTime) > debounceDelay) {
-//        if (reading != buttonPressCount) {
-//            lastButtonState = reading;
-//            if (reading == GPIO_PIN_RESET) { // Nút nhấn
-//                buttonPressCount++;
-//                if (buttonPressCount > 4) buttonPressCount = 1;
-//            }
-//        }
-//    }
-//}
+
 
 void readGPIOInputs(void) {
     gpioInputStates[0] = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6);
@@ -205,6 +186,7 @@ void autoMode()
   case 0: // nâng pallet
     buttonPressCount = 1;
     modeLift = false;
+    m_error = true;
     if (u_timer_expired(&timer_hydarulic[0], TIME_LIFT_PALLET, HAL_GetTick()))
     {
       stepDone[0] = true;
@@ -212,6 +194,7 @@ void autoMode()
     if (stepDone[0])
     {
       buttonPressCount = 0; // off thuỷ lực
+      m_error = false;
       if (u_timer_expired(&timer_hydarulic[1], TIME_FREE, HAL_GetTick()))
       {
         stepDone[0] = false;
@@ -224,6 +207,7 @@ void autoMode()
   case 1: // hạ bánh xe
     buttonPressCount = 1;
     modeLift = true;
+    m_error = true;
     if (u_timer_expired(&timer_hydarulic[0], TIME_LOWER_WHEEL, HAL_GetTick()))
     {
       stepDone[1] = true;
@@ -231,6 +215,7 @@ void autoMode()
     if (stepDone[1])
     {
       buttonPressCount = 0; // off thuỷ lực
+      m_error = false;
       if (u_timer_expired(&timer_hydarulic[1], TIME_FREE, HAL_GetTick()))
       {
         stepDone[1] = false;
@@ -243,6 +228,7 @@ void autoMode()
   case 2: // hạ pallet
     buttonPressCount = 3;
     modeLift = false;
+    m_error = true;
     if (u_timer_expired(&timer_hydarulic[0], TIME_DOWN_PALLET, HAL_GetTick()))
     {
       stepDone[2] = true;
@@ -250,6 +236,7 @@ void autoMode()
     if (stepDone[2])
     {
       buttonPressCount = 0; // off thuỷ lực
+      m_error = false;
       if (u_timer_expired(&timer_hydarulic[1], TIME_FREE, HAL_GetTick()))
       {
         stepDone[2] = false;
@@ -262,6 +249,7 @@ void autoMode()
   case 3: // nâng bánh xe
     buttonPressCount = 3;
     modeLift = true;
+    m_error = true;
     if (u_timer_expired(&timer_hydarulic[0], TIME_LIFT_WHEEL, HAL_GetTick()))
     {
       stepDone[3] = true;
@@ -269,6 +257,7 @@ void autoMode()
     if (stepDone[3])
     {
       buttonPressCount = 0; // off thuỷ lực
+      m_error = false;
       if (u_timer_expired(&timer_hydarulic[1], TIME_FREE, HAL_GetTick()))
       {
         stepDone[3] = false;
@@ -390,6 +379,7 @@ void ControlMotor(bool reset_motor, float adc_speed) {
         }
     }
 }
+
 
 //void canOpenCallBack() {
 //	a++;
@@ -876,6 +866,7 @@ void StartTask_Pump(void *argument)
       {
     	 // motorErrorReset();
     	  NMTmanagement(0x2, MotorID[0]);
+    	  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_RESET);
           hydraulicSetState(free_all_state); // Dừng mọi hoạt động
           // Reset tất cả
           buttonPressCount = 0;
@@ -911,110 +902,59 @@ void StartTask_Pump(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartTask_Motor */
-//
-//void StartTask_Motor(void *argument) {
-//    /* USER CODE BEGIN StartTask_Motor */
-//    osDelay(5000);
-//
-//    // Khởi tạo động cơ
-//    SetOperationMode(3, MotorID[0]);
-//    SDOProfileAcc(speedToRps(0.25), MotorID[0]);
-//    SDOProfileDec(speedToRps(0.3), MotorID[0]);
-//    SetControlWord(ControlWord_EN, MotorID[0]); // enable motor
-//    NMTmanagement(0x1, MotorID[0]);
-//
-//    /* Infinite loop */
-//    for (;;) {
-//        reset_motor = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3) == GPIO_PIN_RESET;
-//        adc_speed = mcp3202.readChannel(0);
-//
-//        // Điều khiển động cơ
-//        ControlMotor(reset_motor, adc_speed);
-//
-//        osDelay(50);
-//    }
-//    /* USER CODE END StartTask_Motor */
-//}
 
 void StartTask_Motor(void *argument) {
     /* USER CODE BEGIN StartTask_Motor */
-    osDelay(5000);
-   // NMTmanagement(0x2, MotorID[0]);
-    SetOperationMode(3, MotorID[0]);
-    SDOProfileAcc(speedToRps(0.25), MotorID[0]);
-    SDOProfileDec(speedToRps(0.3), MotorID[0]);
-    SetControlWord(ControlWord_EN, MotorID[0]); // enable motor
-    NMTmanagement(0x1, MotorID[0]);
-
-    static uint32_t last_change_time = 0;
-    static bool stopping_phase = false; // Đánh dấu giai đoạn dừng
+	osDelay(5000);
+	HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET);
+	// NMTmanagement(0x2, MotorID[0]);
+	SetOperationMode(3, MotorID[0]);
+	SDOProfileAcc(speedToRps(0.25), MotorID[0]);
+	SDOProfileDec(speedToRps(0.3), MotorID[0]);
+	SetControlWord(ControlWord_EN, MotorID[0]); // enable motor
+	NMTmanagement(0x1, MotorID[0]);
 
     /* Infinite loop */
     for (;;) {
-        reset_motor = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3) == GPIO_PIN_RESET;
+		reset_motor = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3) == GPIO_PIN_RESET;
 
-        adc_speed = mcp3202.readChannel(0);
-        bool m_error = false;
-        if (reset_motor == 0) {
-            if (mode == 0) { // Chế độ Manual
-                forward_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_6) == GPIO_PIN_SET);
-                reverse_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_8) == GPIO_PIN_SET);
+		adc_speed = mcp3202.readChannel(0);
 
-                if (forward_pressed && reverse_pressed) {
-                    dir = 0; // Tránh xung đột khi nhấn cả hai nút
-                    target_speed = 0;
-                } else if (forward_pressed) {
-                    dir = 1;
-                    target_speed = map_adc_to_float(adc_speed);
-                } else if (reverse_pressed) {
-                    dir = 3;
-                    target_speed = map_adc_to_float(adc_speed);
-                } else {
-                    dir = 0;
-                    target_speed = 0;
-                }
+		if (reset_motor == 0) {
+			if (mode == 0) { // Chế độ Manual
+				forward_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_6)
+						== GPIO_PIN_SET);
+				reverse_pressed = (HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_8)
+						== GPIO_PIN_SET);
+				if (forward_pressed && reverse_pressed) {
+					dir = 0; // Tránh xung đột khi nhấn cả hai nút
+					target_speed = 0;
+				} else if (forward_pressed) {
+					dir = 1;
+					target_speed = map_adc_to_float(adc_speed);
+				} else if (reverse_pressed) {
+					dir = 3;
+					target_speed = map_adc_to_float(adc_speed);
+				} else {
+					dir = 0;
+					target_speed = 0;
+				}
 
-            } else {
-            	HandleAutoMode();
-            }
-//            { // Chế độ Auto
-//                uint32_t current_time = HAL_GetTick();
-//
-//                if (stopping_phase) {
-//                    if (current_time - last_change_time >= STOP_TIME) {
-//                        stopping_phase = false;
-//                        last_change_time = current_time;
-//
-//                        // Tiếp tục đổi hướng
-//                        if (dir == 1) {
-//                            dir = 3;
-//                        } else if (dir == 3) {
-//                            dir = 1;
-//                        } else {
-//                            dir = 1; // Đảm bảo không bị kẹt ở 0
-//                        }
-//                    } else {
-//                        dir = 0; // Trong thời gian STOP_TIME thì động cơ vẫn dừng
-//                    }
-//                } else {
-//                    if (current_time - last_change_time >= AUTO_TIME) {
-//                        stopping_phase = true; // Bắt đầu giai đoạn dừng
-//                        last_change_time = current_time;
-//                        dir = 0; // Dừng trước khi đổi hướng
-//                    }
-//                }
-//            }
-            target_speed = map_adc_to_float(adc_speed);
-            motorControl(true, m_error, dir, target_speed);
-        } else {
-        	NMTmanagement(0x1, MotorID[0]);
-            motorControl(true, m_error, 0, 0);
-        }
-        osDelay(50);
+			} else {
+				HandleAutoMode();
+			}
+			target_speed = map_adc_to_float(adc_speed);
+			motorControl(true, m_error, dir, target_speed);
+		} else {
+
+			NMTmanagement(0x1, MotorID[0]);
+			HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET);
+			motorControl(true, m_error, 0, 0);
+		}
+		osDelay(50);
     }
     /* USER CODE END StartTask_Motor */
 }
-
 
 /**
   * @brief  This function is executed in case of error occurrence.
